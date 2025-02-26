@@ -3,83 +3,77 @@ import subprocess
 import os
 from pathlib import Path
 
-# Create download directory
+# Directory to store downloads
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-def download_video(url, resolution=None, audio_only=False):
-    """Download video or audio from YouTube using yt-dlp without cookies.txt."""
-    output_template = f"{DOWNLOAD_DIR}/%(title)s.%(ext)s"
-    resolution_filter = f"bestvideo[height<={resolution}]+bestaudio/best" if resolution else "best"
+def download_video(url, resolution="best", audio_only=False):
+    """Download video/audio using yt-dlp with authentication."""
+    
+    output_template = os.path.join(DOWNLOAD_DIR, "%(title)s.%(ext)s")
+    
+    # Set format based on resolution & audio-only option
+    if audio_only:
+        format_option = "bestaudio/best"
+    else:
+        format_option = f"bestvideo[height<={resolution}]+bestaudio/best"
 
+    # YT-DLP command with authentication (cookies.txt)
     command = [
         "yt-dlp",
-        "-f", resolution_filter,
+        "-f", format_option,
         "-o", output_template,
-        "--cookies-from-browser", "chrome",  # Auto-extract cookies from Chrome
+        "--cookies", "cookies.txt",  # Use cookies for authentication
         "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "--referer", "https://www.youtube.com/",
         "--geo-bypass",
         url
     ]
 
-    try:
-        result = subprocess.run(command, check=True, text=True, capture_output=True)
-        st.write(result.stdout)
-        downloaded_files = list(Path(DOWNLOAD_DIR).glob("*.*"))
-        return str(downloaded_files[-1]) if downloaded_files else None
-    except subprocess.CalledProcessError as e:
-        st.error(f"❌ Download failed: {e}")
-        st.error(f"🔍 yt-dlp Error Output:\n{e.stderr}")
+    # Run command
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    # Error handling
+    if result.returncode != 0:
+        st.error(f"❌ Download failed: {result.stderr}")
         return None
+    
+    # Get the downloaded filename
+    output_filename = result.stdout.strip().split("\n")[-1]
+    return output_filename
 
 def convert_format(input_path, output_format):
-    """Convert downloaded file to specified format using FFmpeg."""
+    """Convert video to another format using FFmpeg."""
     output_path = str(Path(input_path).with_suffix(f".{output_format}"))
     ffmpeg_cmd = ["ffmpeg", "-i", input_path, "-c:v", "libx265", "-c:a", "copy", output_path]
-    
-    try:
-        subprocess.run(ffmpeg_cmd, check=True)
-        return output_path
-    except subprocess.CalledProcessError as e:
-        st.error(f"❌ Conversion failed: {e}")
-        return None
+    subprocess.run(ffmpeg_cmd)
+    return output_path
 
 def extract_audio(input_path, output_format="mp3"):
-    """Extract audio from a video file using FFmpeg."""
+    """Extract audio from video using FFmpeg."""
     output_path = str(Path(input_path).with_suffix(f".{output_format}"))
     ffmpeg_cmd = ["ffmpeg", "-i", input_path, "-vn", "-acodec", "libmp3lame", output_path]
-    
-    try:
-        subprocess.run(ffmpeg_cmd, check=True)
-        return output_path
-    except subprocess.CalledProcessError as e:
-        st.error(f"❌ Audio extraction failed: {e}")
-        return None
+    subprocess.run(ffmpeg_cmd)
+    return output_path
 
 # Streamlit UI
-st.title("📥 YouTube Video Downloader")
+st.title("🎥 YouTube Video Downloader")
 
-urls = st.text_area("Enter YouTube URLs (one per line)")
-resolution = st.selectbox("Select Resolution", ["Auto", "360p", "480p", "720p", "1080p"])
-format_option = st.selectbox("Select Format", ["mp4", "mkv", "avi", "mov", "mp3", "aac"])
-audio_only = st.checkbox("Audio Only")
+urls = st.text_area("📌 Enter YouTube URLs (one per line)")
+resolution = st.selectbox("🎯 Select Resolution", ["360p", "480p", "720p", "1080p", "1440p", "2160p"])  # Default resolutions
+format_option = st.selectbox("🎵 Select Format", ["mp4", "mkv", "avi", "mov", "mp3", "aac"])
+audio_only = st.checkbox("🎧 Audio Only")
 
-if st.button("Download & Convert"):
+if st.button("🚀 Download & Convert"):
     urls = urls.split("\n")
     for url in urls:
         url = url.strip()
         if url:
-            st.write(f"🔄 Processing: {url}")
-            file_path = download_video(url, resolution if resolution != "Auto" else None, audio_only)
+            st.write(f"📥 Downloading: {url}")
+            file_path = download_video(url, resolution if resolution != "Auto" else "best", audio_only)
             if file_path:
                 if format_option in ["mp3", "aac"]:
                     file_path = extract_audio(file_path, format_option)
                 elif format_option != "mp4":
                     file_path = convert_format(file_path, format_option)
-                
-                if file_path:
-                    file_name = Path(file_path).name
-                    st.success(f"✅ Download Complete: [Click Here to Download](/{file_path})")
-                else:
-                    st.error("❌ Failed to process the file.")
+                st.success(f"✅ Download Complete: [Click Here](/{file_path})")
