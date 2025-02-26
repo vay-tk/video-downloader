@@ -38,9 +38,11 @@ def download_video(url, resolution="best", audio_only=False):
         st.error(f"❌ Download failed: {result.stderr}")
         return None
     
-    # Get the downloaded filename
-    output_filename = result.stdout.strip().split("\n")[-1]
-    return output_filename
+    # Find downloaded file in the downloads directory
+    downloaded_files = sorted(Path(DOWNLOAD_DIR).iterdir(), key=os.path.getmtime, reverse=True)
+    if downloaded_files:
+        return str(downloaded_files[0])
+    return None
 
 def convert_format(input_path, output_format):
     """Convert video to another format using FFmpeg."""
@@ -71,9 +73,15 @@ if st.button("🚀 Download & Convert"):
         if url:
             st.write(f"📥 Downloading: {url}")
             file_path = download_video(url, resolution if resolution != "Auto" else "best", audio_only)
+            
             if file_path:
                 if format_option in ["mp3", "aac"]:
                     file_path = extract_audio(file_path, format_option)
                 elif format_option != "mp4":
                     file_path = convert_format(file_path, format_option)
-                st.success(f"✅ Download Complete: [Click Here](/{file_path})")
+
+                # Read file and create a download button
+                with open(file_path, "rb") as f:
+                    file_bytes = f.read()
+                    st.success("✅ Download Complete!")
+                    st.download_button(label="⬇ Download File", data=file_bytes, file_name=os.path.basename(file_path))
