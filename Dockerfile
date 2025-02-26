@@ -1,8 +1,8 @@
 # Use official Python image
 FROM python:3.10
 
-# Install FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg
+# Install FFmpeg & yt-dlp
+RUN apt-get update && apt-get install -y ffmpeg && pip install yt-dlp
 
 # Set working directory
 WORKDIR /app
