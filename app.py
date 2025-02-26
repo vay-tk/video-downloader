@@ -8,20 +8,26 @@ DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 def download_video(url, resolution=None, audio_only=False):
-    """Download video or audio from YouTube using yt-dlp."""
+    """Download video or audio from YouTube using yt-dlp without cookies.txt."""
     output_template = f"{DOWNLOAD_DIR}/%(title)s.%(ext)s"
     resolution_filter = f"bestvideo[height<={resolution}]+bestaudio/best" if resolution else "best"
 
-    if audio_only:
-        command = ["yt-dlp", "-f", "bestaudio", "-o", output_template, url]
-    else:
-        command = ["yt-dlp", "-f", resolution_filter, "-o", output_template, url]
+    command = [
+        "yt-dlp",
+        "-f", resolution_filter,
+        "-o", output_template,
+        "--cookies-from-browser", "chrome",  # Auto-extract cookies from Chrome
+        "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "--referer", "https://www.youtube.com/",
+        "--geo-bypass",
+        url
+    ]
 
     try:
         result = subprocess.run(command, check=True, text=True, capture_output=True)
-        st.write(result.stdout)  # Display yt-dlp output in Streamlit
-        downloaded_files = list(Path(DOWNLOAD_DIR).glob("*.*"))  # Get downloaded files
-        return str(downloaded_files[-1]) if downloaded_files else None  # Return latest file
+        st.write(result.stdout)
+        downloaded_files = list(Path(DOWNLOAD_DIR).glob("*.*"))
+        return str(downloaded_files[-1]) if downloaded_files else None
     except subprocess.CalledProcessError as e:
         st.error(f"❌ Download failed: {e}")
         st.error(f"🔍 yt-dlp Error Output:\n{e.stderr}")
