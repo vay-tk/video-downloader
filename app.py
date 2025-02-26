@@ -2,7 +2,7 @@
 import streamlit as st
 import subprocess
 import os
-from pytube import YouTube
+import yt_dlp
 from pathlib import Path
 
 # Directory to store downloads
@@ -10,18 +10,15 @@ DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 def download_video(url, resolution=None, audio_only=False):
-    """Download video or audio from YouTube."""
-    yt = YouTube(url)
-    if audio_only:
-        stream = yt.streams.filter(only_audio=True).first()
-    else:
-        stream = yt.streams.filter(res=resolution, progressive=True, file_extension='mp4').first()
+    ydl_opts = {
+        'format': 'bestaudio' if audio_only else f'bestvideo[height={resolution}]+bestaudio/best' if resolution else 'best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s'
+    }
     
-    if not stream:
-        st.error("No stream found with the specified parameters.")
-        return None
-    
-    return stream.download(output_path=DOWNLOAD_DIR)
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        return f"downloads/{info['title']}.mp4" if not audio_only else f"downloads/{info['title']}.m4a"
+
 
 def convert_format(input_path, output_format):
     """Convert downloaded file to specified format using FFmpeg."""
